@@ -1,44 +1,32 @@
 import React, { useState } from "react";
 import axios from "axios";
-import download from 'downloadjs';
+import download from "downloadjs";
 
-import "./ImageGenerator.css"; 
+import "./ImageGenerator.css";
 
-const OPENAI_API_KEY = "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"; // Replace with your actual API key
-
-
-function ImageGenerator(){
-
+function ImageGenerator() {
   const [prompt, setPrompt] = useState("A cute baby sea otter");
   const [generatedImages, setGeneratedImages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function generateImages() {
     setIsLoading(true);
+    setError("");
 
     try {
-      const requestData = {
-        prompt: prompt,
+      const response = await axios.post("/api/generate-image", {
+        prompt,
         n: 2,
-        size: "256x256", // Set the desired image size here
-      };
-
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      };
-
-      const response = await axios.post(
-        "https://api.openai.com/v1/images/generations",
-        requestData,
-        {
-          headers: headers,
-        }
+        size: "256x256",
+      });
+      setGeneratedImages(response.data.data || []);
+    } catch (requestError) {
+      console.error("Error generating images:", requestError);
+      setError(
+        requestError.response?.data?.error ||
+          "Image generation is not configured. Add a server-side image-generation route."
       );
-
-      setGeneratedImages(response.data.data);
-    } catch (error) {
-      console.error("Error generating images:", error);
     } finally {
       setIsLoading(false);
     }
@@ -46,10 +34,11 @@ function ImageGenerator(){
 
   async function downloadImage(url, filename) {
     try {
-      const response = await axios.get(url, { responseType: 'blob' });
-      download(response.data, filename, 'image/png');
-    } catch (error) {
-      console.error("Error downloading image:", error);
+      const response = await axios.get(url, { responseType: "blob" });
+      download(response.data, filename, "image/png");
+    } catch (downloadError) {
+      console.error("Error downloading image:", downloadError);
+      setError("The generated image could not be downloaded.");
     }
   }
 
@@ -61,28 +50,31 @@ function ImageGenerator(){
           type="text"
           id="prompt"
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(event) => setPrompt(event.target.value)}
           className="border rounded px-2 py-1"
         />
       </div>
       <button
         onClick={generateImages}
-        disabled={isLoading}
+        disabled={isLoading || !prompt.trim()}
         className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
       >
         {isLoading ? "Generating..." : "Generate Images"}
       </button>
+      {error && <p role="alert" className="mt-4 text-red-600">{error}</p>}
       {isLoading && <p className="mt-4 text-gray-600">Loading...</p>}
       {generatedImages.length > 0 && (
         <div className="mt-4">
           {generatedImages.map((image, index) => (
-            <div key={index} className="mt-4">
+            <div key={image.url || index} className="mt-4">
               <img
                 src={image.url}
-                alt={`Generated Image ${index}`}
+                alt={\`Generated Image \${index + 1}\`}
                 style={{ maxWidth: "100%", height: "auto" }}
               />
-              <button onClick={() => downloadImage(image.url, `image${index}.png`)}>Download Image</button>
+              <button onClick={() => downloadImage(image.url, \`image\${index}.png\`)}>
+                Download Image
+              </button>
             </div>
           ))}
         </div>
@@ -90,4 +82,5 @@ function ImageGenerator(){
     </div>
   );
 }
+
 export default ImageGenerator;
